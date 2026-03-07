@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아기 이름 메이커</title>
+    <style>
+        body {
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+            background-color: #85D9BF; 
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            color: white; 
+            overflow: hidden; 
+        }
+
+        /* 어두운 배경 (오버레이) */
+        #overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 50;
+            display: none;
+            cursor: pointer; 
+        }
+
+        /* 하이라이트 모드 시 위로 띄워주는 클래스 */
+        .highlight-mode {
+            position: relative;
+            z-index: 51 !important;
+        }
+
+        /* 왼쪽: 메인 이름 생성기 영역 (비율 3) */
+        .main-container {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* 전체 세로 중앙 정렬 */
+            border-right: 2px dashed white; 
+            position: relative;
+            padding: 20px 0; /* 상하 여백 추가 */
+        }
+
+        /* 내용들을 중앙에 모으기 위한 래퍼 (이 부분이 세로 중앙에 오도록 수정) */
+        .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* 내부 컨텐츠 세로 중앙 정렬 */
+            flex: 1; /* 남은 여백을 차지하여 중앙에 위치하게 함 */
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: white; 
+            margin-bottom: 20px;
+            margin-top: 0; /* 상단 여백 제거 */
+        }
+
+        .roll-all-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background-color: #F0B2C5; 
+            color: white; 
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+            margin-bottom: 30px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .roll-all-btn:hover { background-color: #E6A3B7; transform: translateY(-2px); }
+        .roll-all-btn:active { transform: translateY(0); }
+
+        .name-area {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .syllable-block {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .box {
+            width: 100px;
+            height: 100px;
+            background-color: white;
+            border: 3px solid white; 
+            color: #333; 
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .box.selected {
+            border: 4px solid #F0B2C5; 
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(240, 178, 197, 0.6);
+        }
+
+        .last-name-input {
+            text-align: center;
+            font-family: inherit;
+            box-sizing: border-box;
+            outline: none;
+            cursor: text;
+        }
+        .last-name-input:focus { border-color: #F0B2C5; }
+
+        .action-menu {
+            position: relative;
+            width: 80px;
+            height: 35px; 
+        }
+
+        .action-buttons {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 0.2s ease-in-out;
+        }
+
+        .action-menu:hover .change-btn { opacity: 0; }
+        .action-menu:hover .action-buttons { opacity: 1; pointer-events: auto; }
+
+        button.small-btn {
+            width: 100%;
+            padding: 8px 0;
+            font-size: 0.9rem;
+            font-weight: bold;
+            background-color: #FFCC99; 
+            color: #333; 
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        button.change-btn { background-color: #E0E0E0; color: #333; position: absolute; z-index: 2; }
+        button.small-btn:hover { background-color: #FFB366; }
+        button.manual-input { background-color: #FFFACD; color: #333; }
+        button.manual-input:hover { background-color: #FFF8B0; }
+        button.prev-btn { background-color: #AED9E0; color: #333; }
+        button.prev-btn:hover { background-color: #92CFDA; }
+
+        .save-btn {
+            background-color: #F0B2C5; 
+            color: white; 
+            height: 100px;
+            margin-left: 10px;
+            font-size: 1.2rem;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+            padding: 0 20px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1); 
+        }
+        .save-btn:hover { background-color: #E6A3B7; transform: translateY(-2px); }
+
+        /* 하단 영역 래퍼 및 패널 영역 (margin-top: auto 제거) */
+        .trash-wrapper {
+            width: 80%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px; /* 위쪽 컨텐츠와 간격 추가 */
+            margin-bottom: 0;
+        }
+
+        .trash-panel {
+            background-color: #E1EFD3; 
+            color: #333;
+            width: 100%;
+            height: 35px; 
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 2px solid transparent;
+        }
+
+        /* 드래그가 시작되었을 때 휴지통 패널이 살짝 커짐 */
+        body.is-dragging .trash-panel {
+            height: 60px;
+            font-size: 1rem;
+            background-color: #d8eac8; 
+        }
+
+        /* 드래그 영역 안으로 들어왔을 때 마중 나오는 애니메이션 */
+        .trash-panel.drag-over {
+            height: 120px;
+            transform: translateY(-15px); /* 위로 튀어나옴 */
+            background-color: #cce4b9;
+            border: 2px dashed #E36C90; 
+            font-size: 1.2rem;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        }
+
+        .syllable-count {
+            font-size: 0.85rem;
+            color: #f0f0f0; 
+        }
+
+        .discarded-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            width: 100%;
+            min-height: 25px; 
+        }
+
+        .discard-chip {
+            background-color: rgba(255,255,255, 0.5); 
+            color: #333; 
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            text-decoration: line-through;
+            font-weight: bold;
+        }
+
+        /* 오른쪽 사이드바 (비율 1, 수평 분할 유지) */
+        .sidebar {
+            flex: 1; 
+            display: flex;
+            flex-direction: row; 
+            background-color: #E1EFD3; 
+            color: #333; 
+        }
+
+        .filter-section {
+            flex: 1;
+            padding: 20px;
+            border-right: 2px dashed #c0d4af; 
+            overflow-y: auto;
+            background-color: #E1EFD3; 
+            border-radius: 10px;
+        }
+
+        .filter-section.highlight-mode {
+            box-shadow: 0 0 20px rgba(0,0,0,0.3); 
+        }
+
+        .filter-section h2, .saved-section h2 {
+            color: #333; 
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 1.1rem; 
+        }
+        
+        .filter-desc {
+            font-size: 0.75rem;
+            color: #555; 
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .consonant-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 6px;
+        }
+
+        .consonant-btn {
+            background-color: rgba(255,255,255,0.6); 
+            border: 2px solid white; 
+            border-radius: 8px;
+            padding: 6px 0;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #333; 
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .consonant-btn.active {
+            background-color: #F0B2C5; 
+            border-color: #E6A3B7;
+            color: white; 
+        }
+
+        .saved-section {
+            flex: 1.2;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #E1EFD3; 
+        }
+
+        ul { list-style-type: none; padding: 0; margin: 0; }
+        li {
+            font-size: 1rem;
+            font-weight: bold;
+            padding: 10px;
+            border-bottom: 1px solid #c0d4af; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .delete-btn {
+            background-color: rgba(255,255,255,0.7); 
+            color: #333; 
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .delete-btn:hover { background-color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay" onclick="closeOverlay()"></div>
+
+    <div class="main-container">
+        <div class="content-wrapper">
+            <h1>아기 이름 메이커 👶</h1>
+            
+            <button class="roll-all-btn" onclick="rollAll()">이름 전체 랜덤 🎲🎲</button>
+
+            <div class="name-area">
+                <div class="syllable-block">
+                    <input type="text" id="lastName" class="box last-name-input" maxlength="2" value="강">
+                </div>
+
+                <div class="syllable-block">
+                    <div class="box" id="char1" draggable="true" 
+                         onclick="selectBox(1)" ondragstart="drag(event, 1)" ondragend="dragEnd(event)"
+                         ondrop="dropOnBox(event)" ondragover="allowDropBox(event)" ondragleave="dragLeaveBox(event)">□</div>
+                    <div class="action-menu">
+                        <button class="small-btn change-btn">변경 🔄</button>
+                        <div class="action-buttons">
+                            <button class="small-btn" onclick="roll(1)">랜덤 🎲</button>
+                            <button class="small-btn prev-btn" onclick="goPrev(1)">이전 ⏪</button>
+                            <button class="small-btn manual-input" onclick="manualInput(1)">입력 ✍️</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="syllable-block">
+                    <div class="box" id="char2" draggable="true" 
+                         onclick="selectBox(2)" ondragstart="drag(event, 2)" ondragend="dragEnd(event)"
+                         ondrop="dropOnBox(event)" ondragover="allowDropBox(event)" ondragleave="dragLeaveBox(event)">□</div>
+                    <div class="action-menu">
+                        <button class="small-btn change-btn">변경 🔄</button>
+                        <div class="action-buttons">
+                            <button class="small-btn" onclick="roll(2)">랜덤 🎲</button>
+                            <button class="small-btn prev-btn" onclick="goPrev(2)">이전 ⏪</button>
+                            <button class="small-btn manual-input" onclick="manualInput(2)">입력 ✍️</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="save-btn" onclick="saveName()">Save ❤️</button>
+            </div>
+        </div>
+
+        <div class="trash-wrapper" id="trash-wrapper">
+            <div class="trash-panel" id="trash" ondrop="dropOnTrash(event)" ondragover="allowDropTrash(event)" ondragleave="dragLeaveTrash(event)">
+                🗑️ 맘에 들지 않는 글자는 이곳에 버려주세요
+            </div>
+            <div class="syllable-count" id="count-display">남은 글자 수: 135개</div>
+            <div class="discarded-chips" id="discarded-list"></div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="filter-section" id="filter-section">
+            <h2>초성 필터 🔠</h2>
+            <div class="filter-desc">
+                원하는 초성을 여러 개 고르세요.
+            </div>
+            <div class="consonant-grid" id="consonant-grid">
+            </div>
+        </div>
+
+        <div class="saved-section">
+            <h2>저장된 이름 📝</h2>
+            <ul id="saved-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        let syllables = [
+            '가', '강', '건', '결', '경', '고', '교', '규', '기', '나', '노', '다', '단', '도', '동', 
+            '두', '라', '래', '로', '루', '리', '마', '민', '보', '빈', '사', '서', '선', '설', '성', 
+            '세', '소', '솔', '수', '승', '시', '아', '안', '애', '양', '어', '여', '연', '예', '오', 
+            '온', '완', '요', '우', '원', '유', '윤', '율', '은', '이', '자', '재', '람', '린', '을', 
+            '현', '희', '운', '겸', '인', '하', '정', '준', '지', '랑', '론', '영', '진', '호', '담', 
+            '름', '울', '주', '닮', '슬', '찬', '한', '셉', '란', '채', '별', '조', '든', '레', '제', 
+            '근', '금', '남', '누', '대', '덕', '만', '바', '차', '천', '철', '태', '필', '해', '형', 
+            '혜', '홍', '관', '광', '구', '길', '달', '림', '명', '모', '무', '문', '미', '박', '반', 
+            '방', '배', '백', '범', '본', '봄', '부', '빛', '산', '상', '새', '샘', '석', '솜', '송', 
+            '숙', '순', '신', '옥', '용', '욱', '월', '음', '익', '일', '임', '잎', '잔', '장', '전', 
+            '종', '중', '창', '초', '최', '추', '춘', '택', '판', '평', '포', '표', '푸', '품', '풍', 
+            '학', '함', '향', '헌', '혁', '화', '회', '효', '훈', '휘'
+        ];
+
+        const CONSONANTS = ['ㄱ','ㄴ','ㄷ','ㄹ','ㅁ','ㅂ','ㅅ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+        const CHO_SUNG = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+        let historyState = { 1: [], 2: [] };
+        let historyIndex = { 1: -1, 2: -1 };
+        
+        let activeBox = null; 
+        let filters = { 1: new Set(), 2: new Set() }; 
+
+        window.onload = function() {
+            setTimeout(() => {
+                let initialLastName = prompt("아기의 성(예: 김, 이, 박)을 입력해주세요.", "강");
+                if(initialLastName !== null && initialLastName.trim() !== '') {
+                    document.getElementById('lastName').value = initialLastName.trim();
+                }
+            }, 100);
+
+            updateCount();
+            renderConsonants();
+        };
+
+        function updateCount() {
+            document.getElementById('count-display').innerText = `남은 글자 수: ${syllables.length}개`;
+        }
+
+        /* ----- 하이라이트(오버레이) 관련 함수 ----- */
+        function selectBox(boxNumber) {
+            closeOverlay(); 
+
+            activeBox = boxNumber;
+            const box = document.getElementById('char' + boxNumber);
+            
+            box.classList.add('selected');
+            box.classList.add('highlight-mode');
+            
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('filter-section').classList.add('highlight-mode');
+            
+            document.getElementById('trash-wrapper').classList.add('highlight-mode');
+            
+            renderConsonants(); 
+        }
+
+        // 오버레이 클릭 시 닫기
+        function closeOverlay() {
+            document.getElementById('char1').classList.remove('selected', 'highlight-mode');
+            document.getElementById('char2').classList.remove('selected', 'highlight-mode');
+            document.getElementById('filter-section').classList.remove('highlight-mode');
+            document.getElementById('trash-wrapper').classList.remove('highlight-mode');
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function renderConsonants() {
+            const grid = document.getElementById('consonant-grid');
+            grid.innerHTML = '';
+            
+            CONSONANTS.forEach(c => {
+                const btn = document.createElement('button');
+                btn.innerText = c;
+                btn.className = 'consonant-btn';
+                
+                if (!activeBox) {
+                    btn.style.opacity = '0.4';
+                    btn.style.cursor = 'not-allowed';
+                } else {
+                    if (filters[activeBox].has(c)) {
+                        btn.classList.add('active');
+                    }
+                    btn.onclick = () => toggleFilter(c);
+                }
+                grid.appendChild(btn);
+            });
+        }
+
+        function toggleFilter(consonant) {
+            if (!activeBox) return;
+            if (filters[activeBox].has(consonant)) {
+                filters[activeBox].delete(consonant); 
+            } else {
+                filters[activeBox].add(consonant); 
+            }
+            renderConsonants();
+        }
+
+        function getChosung(char) {
+            const code = char.charCodeAt(0) - 44032;
+            if (code > -1 && code < 11172) return CHO_SUNG[Math.floor(code / 588)];
+            return char;
+        }
+
+        function addToHistory(boxNum, char) {
+            if (char === '□') return;
+            if (historyIndex[boxNum] < historyState[boxNum].length - 1) {
+                historyState[boxNum] = historyState[boxNum].slice(0, historyIndex[boxNum] + 1);
+            }
+            historyState[boxNum].push(char);
+            historyIndex[boxNum]++;
+        }
+
+        function goPrev(boxNum) {
+            if (historyIndex[boxNum] > 0) {
+                historyIndex[boxNum]--;
+                const prevChar = historyState[boxNum][historyIndex[boxNum]];
+                document.getElementById('char' + boxNum).innerText = prevChar;
+            } else {
+                alert('더 이상 이전 글자 기록이 없습니다.');
+            }
+        }
+
+        function manualInput(boxNum) {
+            let inputChar = prompt("원하는 글자를 입력하세요 (1글자):");
+            if (inputChar && inputChar.trim().length > 0) {
+                let char = inputChar.trim()[0]; 
+                document.getElementById('char' + boxNum).innerText = char;
+                addToHistory(boxNum, char);
+            }
+        }
+
+        function getRandomSyllable(boxNum) {
+            if (syllables.length === 0) return null;
+
+            let pool = syllables;
+            if (filters[boxNum].size > 0) {
+                pool = syllables.filter(c => {
+                    let chosung = getChosung(c);
+                    return filters[boxNum].has(chosung);
+                });
+            }
+
+            if (pool.length === 0) {
+                alert(`선택하신 초성에 해당하는 글자가 리스트에 없습니다.\n(우측 필터를 해제하거나 다른 자음을 선택해주세요)`);
+                return null;
+            }
+
+            const randomIndex = Math.floor(Math.random() * pool.length);
+            return pool[randomIndex];
+        }
+
+        function roll(boxNumber) {
+            const char = getRandomSyllable(boxNumber);
+            if (char) {
+                document.getElementById('char' + boxNumber).innerText = char;
+                addToHistory(boxNumber, char);
+            }
+        }
+
+        function rollAll() {
+            const char1 = getRandomSyllable(1);
+            let char2 = getRandomSyllable(2);
+
+            let attempts = 0;
+            while (char1 && char2 && char1 === char2 && attempts < 10) {
+                char2 = getRandomSyllable(2);
+                attempts++;
+            }
+
+            if (char1) {
+                document.getElementById('char1').innerText = char1;
+                addToHistory(1, char1);
+            }
+            if (char2) {
+                document.getElementById('char2').innerText = char2;
+                addToHistory(2, char2);
+            }
+        }
+
+        function saveName() {
+            const lastName = document.getElementById('lastName').value.trim();
+            const char1 = document.getElementById('char1').innerText;
+            const char2 = document.getElementById('char2').innerText;
+
+            if (lastName === '') {
+                alert('성씨를 입력해주세요!');
+                return;
+            }
+            if (char1 === '□' || char2 === '□') {
+                alert('버튼을 눌러 이름을 먼저 완성해주세요!');
+                return;
+            }
+
+            const fullName = lastName + ' ' + char1 + char2;
+            const list = document.getElementById('saved-list');
+            const listItem = document.createElement('li');
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = fullName;
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerText = '삭제';
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.onclick = function() {
+                list.removeChild(listItem);
+            };
+
+            listItem.appendChild(nameSpan);
+            listItem.appendChild(deleteBtn);
+            list.appendChild(listItem);
+        }
+
+        /* ----- 드래그 앤 드롭 로직 ----- */
+
+        // 드래그를 시작할 때
+        function drag(event, boxNumber) {
+            event.dataTransfer.setData("text", event.target.innerText);
+            event.dataTransfer.setData("sourceId", event.target.id);
+            
+            document.body.classList.add('is-dragging');
+            
+            selectBox(boxNumber);
+        }
+
+        // 드래그가 끝났을 때 (성공/실패 상관없이)
+        function dragEnd(event) {
+            document.body.classList.remove('is-dragging');
+        }
+
+        function allowDropTrash(event) {
+            event.preventDefault(); 
+            document.getElementById('trash').classList.add('drag-over');
+        }
+        function dragLeaveTrash(event) {
+            document.getElementById('trash').classList.remove('drag-over');
+        }
+        function dropOnTrash(event) {
+            event.preventDefault();
+            document.getElementById('trash').classList.remove('drag-over');
+            
+            const draggedChar = event.dataTransfer.getData("text");
+            const sourceId = event.dataTransfer.getData("sourceId");
+
+            if (draggedChar !== '□' && sourceId) {
+                syllables = syllables.filter(char => char !== draggedChar);
+                document.getElementById(sourceId).innerText = '□';
+                updateCount();
+                
+                addDiscardedChip(draggedChar);
+            }
+        }
+
+        function addDiscardedChip(char) {
+            const list = document.getElementById('discarded-list');
+            const chip = document.createElement('div');
+            chip.className = 'discard-chip';
+            chip.innerText = char;
+            list.appendChild(chip);
+        }
+
+        function allowDropBox(event) {
+            event.preventDefault();
+            if(event.target.id === 'char1' || event.target.id === 'char2') {
+                event.target.classList.add('drag-over');
+            }
+        }
+        function dragLeaveBox(event) {
+            if(event.target.id === 'char1' || event.target.id === 'char2') {
+                event.target.classList.remove('drag-over');
+            }
+        }
+        function dropOnBox(event) {
+            event.preventDefault();
+            const targetElement = event.target;
+            
+            if(targetElement.id === 'char1' || targetElement.id === 'char2') {
+                targetElement.classList.remove('drag-over');
+            }
+
+            const sourceId = event.dataTransfer.getData("sourceId");
+            const targetId = targetElement.id;
+
+            if (sourceId && targetId && sourceId !== targetId && (targetId === 'char1' || targetId === 'char2')) {
+                const sourceElement = document.getElementById(sourceId);
+                
+                const tempText = targetElement.innerText;
+                const sourceText = sourceElement.innerText;
+                
+                targetElement.innerText = sourceText;
+                sourceElement.innerText = tempText;
+
+                let targetBoxNum = targetId === 'char1' ? 1 : 2;
+                let sourceBoxNum = sourceId === 'char1' ? 1 : 2;
+                addToHistory(targetBoxNum, sourceText);
+                addToHistory(sourceBoxNum, tempText);
+            }
+        }
+    </script>
+</body>
+</html>
