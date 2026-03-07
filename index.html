@@ -9,10 +9,9 @@
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
     <script>
-        // 모바일 터치 드래그 감도 최적화
         MobileDragDrop.polyfill({
             dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride,
-            holdToDrag: 100 // 살짝만 머물러도 바로 드래그 되도록 반응속도 상향
+            holdToDrag: 100 
         });
         window.addEventListener('touchmove', function() {}, {passive: false});
     </script>
@@ -37,6 +36,11 @@
             z-index: 50;
             display: none;
             cursor: pointer; 
+        }
+
+        /* ★ 핵심 수정: 드래그 중에는 오버레이가 터치를 방해하지 않게 투명화 */
+        body.is-dragging #overlay {
+            pointer-events: none !important;
         }
 
         .highlight-mode {
@@ -197,7 +201,6 @@
         }
         .save-btn:hover { background-color: #E6A3B7; transform: translateY(-2px); }
 
-        /* 휴지통 영역을 넓게 잡아 터치 인식률 상승 */
         .trash-wrapper {
             width: 90%;
             max-width: 500px;
@@ -208,10 +211,9 @@
             margin-top: 20px; 
             margin-bottom: 0;
             position: relative;
-            padding: 10px; /* 인식 범위를 더 넓게 */
+            padding: 10px; 
         }
 
-        /* 패널 자체는 시각적 효과만 담당 */
         .trash-panel {
             background-color: #E1EFD3; 
             color: #333;
@@ -227,7 +229,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 2px solid transparent;
             box-sizing: border-box;
-            pointer-events: none; /* 내부 글씨 등에서 드래그 이벤트 뺏기는 것 방지 */
+            pointer-events: none; 
         }
 
         body.is-dragging .trash-panel {
@@ -548,9 +550,25 @@
         let activeBox = null; 
         let filters = { 1: new Set(), 2: new Set() }; 
 
-        // ★ 모바일 데이터 유실 방지를 위한 글로벌 백업 변수
+        // ★ 모바일 터치 위치를 실시간으로 기억하는 백업 추적기
         let activeDragChar = '';
         let activeDragId = '';
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        // 화면 어디든 터치해서 움직이면 좌표를 실시간 기록
+        window.addEventListener('touchmove', function(e) {
+            if (e.touches.length > 0) {
+                lastTouchX = e.touches[0].clientX;
+                lastTouchY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        // 데스크탑 마우스 드래그 좌표도 기록
+        window.addEventListener('dragover', function(e) {
+            lastTouchX = e.clientX;
+            lastTouchY = e.clientY;
+        });
 
         window.onload = function() {
             setTimeout(() => {
@@ -579,7 +597,6 @@
             
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('filter-section').classList.add('highlight-mode');
-            
             document.getElementById('trash-wrapper').classList.add('highlight-mode');
             
             renderConsonants(); 
@@ -743,7 +760,6 @@
         /* ----- 드래그 앤 드롭 로직 ----- */
 
         function drag(event, boxNumber) {
-            // 백업 메모리에 강제 저장
             activeDragChar = event.target.innerText;
             activeDragId = event.target.id;
 
@@ -754,10 +770,35 @@
             selectBox(boxNumber);
         }
 
+        // ★ 강제 좌표 확인: 드래그가 끝났을 때 모바일 브라우저가 이벤트를 씹었는지 검사
         function dragEnd(event) {
-            // 드롭 이벤트 처리가 끝날 때까지 기다려주는 시간 지연 적용
+            document.body.classList.remove('is-dragging');
+            document.getElementById('trash-wrapper').classList.remove('drag-over');
+
+            if (activeDragChar) {
+                const trash = document.getElementById('trash-wrapper');
+                const rect = trash.getBoundingClientRect();
+                
+                // 마지막으로 기록된 손가락 좌표 활용
+                const cx = event.clientX || lastTouchX;
+                const cy = event.clientY || lastTouchY;
+
+                // 손가락이 휴지통 위(+여유공간 30px)에서 떨어졌다면 강제 삭제 처리
+                if (cx >= rect.left - 30 && cx <= rect.right + 30 && cy >= rect.top - 30 && cy <= rect.bottom + 30) {
+                    // 가상의 이벤트 객체를 만들어서 drop 함수 강제 실행
+                    dropOnTrash({
+                        preventDefault: () => {},
+                        dataTransfer: {
+                            getData: function(key) {
+                                return key === "text" ? activeDragChar : activeDragId;
+                            }
+                        }
+                    });
+                }
+            }
+
+            // 안전하게 지운 후 변수 초기화
             setTimeout(() => {
-                document.body.classList.remove('is-dragging');
                 activeDragChar = '';
                 activeDragId = '';
             }, 100);
@@ -776,9 +817,9 @@
             event.preventDefault();
             document.getElementById('trash-wrapper').classList.remove('drag-over');
             
-            // 모바일 데이터 유실 방지: dataTransfer가 비어있으면 백업 변수(activeDragChar) 사용
-            const draggedChar = event.dataTransfer.getData("text") || activeDragChar;
-            const sourceId = event.dataTransfer.getData("sourceId") || activeDragId;
+            // 데이터 유실 방지 로직 (이벤트에서 못 가져오면 백업 변수 사용)
+            const draggedChar = (event.dataTransfer && event.dataTransfer.getData("text")) || activeDragChar;
+            const sourceId = (event.dataTransfer && event.dataTransfer.getData("sourceId")) || activeDragId;
 
             if (draggedChar && draggedChar !== '□' && sourceId) {
                 syllables = syllables.filter(char => char !== draggedChar);
@@ -787,6 +828,10 @@
                 
                 addDiscardedChip(draggedChar);
                 closeOverlay(); 
+                
+                // 중복 삭제 방지를 위해 즉시 초기화
+                activeDragChar = '';
+                activeDragId = '';
             }
         }
 
@@ -817,8 +862,7 @@
                 targetElement.classList.remove('drag-over');
             }
 
-            // 모바일 호환성 백업 변수
-            const sourceId = event.dataTransfer.getData("sourceId") || activeDragId;
+            const sourceId = (event.dataTransfer && event.dataTransfer.getData("sourceId")) || activeDragId;
             const targetId = targetElement.id;
 
             if (sourceId && targetId && sourceId !== targetId && (targetId === 'char1' || targetId === 'char2')) {
