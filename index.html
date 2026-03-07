@@ -9,9 +9,10 @@
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
     <script>
-        // 모바일 터치 드래그 활성화
+        // 모바일 터치 드래그 감도 최적화 (살짝 머물렀다 끌면 부드럽게 드래그)
         MobileDragDrop.polyfill({
-            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+            dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride,
+            holdToDrag: 150 
         });
         window.addEventListener('touchmove', function() {}, {passive: false});
     </script>
@@ -115,8 +116,10 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             cursor: pointer;
             transition: 0.2s;
-            /* 모바일 터치 시 기본 동작 방지 (드래그 부드럽게) */
+            /* 모바일 최적화: 텍스트 선택 방지 및 터치 스크롤 방지 */
             touch-action: none; 
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         .box.selected {
@@ -204,6 +207,7 @@
             gap: 8px;
             margin-top: 20px; 
             margin-bottom: 0;
+            position: relative;
         }
 
         .trash-panel {
@@ -217,23 +221,26 @@
             align-items: center;
             font-weight: bold;
             font-size: 0.9rem;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transition: all 0.2s ease-in-out;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             border: 2px solid transparent;
+            box-sizing: border-box;
         }
 
+        /* 데스크탑 환경 휴지통 마중 효과 */
         body.is-dragging .trash-panel {
             height: 60px;
             font-size: 1rem;
             background-color: #d8eac8; 
         }
 
+        /* 드롭 영역 위로 올라왔을 때 (레이아웃 틀어짐 방지를 위해 scale 활용) */
         .trash-panel.drag-over {
-            height: 120px;
-            transform: translateY(-15px); 
+            height: 80px !important;
+            transform: scale(1.05); 
             background-color: #cce4b9;
-            border: 2px dashed #E36C90; 
-            font-size: 1.2rem;
+            border: 3px dashed #E36C90; 
+            font-size: 1.1rem;
             box-shadow: 0 10px 15px rgba(0,0,0,0.1);
         }
 
@@ -350,13 +357,13 @@
         .delete-btn:hover { background-color: white; }
 
         /* =========================================
-           모바일 반응형 최적화 (화면이 768px 이하일 때)
+           모바일 반응형 최적화 (화면폭 768px 이하)
            ========================================= */
         @media (max-width: 768px) {
             body {
-                flex-direction: column; /* 세로 방향으로 쌓기 */
+                flex-direction: column;
                 height: auto;
-                overflow-y: auto; /* 모바일에서는 스크롤 허용 */
+                overflow-y: auto;
             }
 
             .main-container {
@@ -364,46 +371,73 @@
                 border-right: none;
                 border-bottom: 2px dashed white;
                 padding: 30px 0;
-                min-height: 70vh; /* 메인 화면이 폰 화면에 꽉 차게 */
+                min-height: 80vh; /* 화면에 꽉 차도록 */
             }
 
             .sidebar {
                 width: 100%;
-                flex-direction: column; /* 초성 필터와 리스트를 위아래로 쌓기 */
+                flex-direction: column;
             }
 
+            /* 모바일 초성 필터: 평소엔 숨기고, 바텀 시트 형태로 팝업 */
             .filter-section {
-                border-right: none;
-                border-bottom: 2px dashed #c0d4af;
-                border-radius: 0;
-                padding-bottom: 30px;
+                display: none; /* 평소 숨김 */
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background-color: #E1EFD3;
+                z-index: 100; /* 오버레이보다 위로 */
+                border-radius: 20px 20px 0 0;
+                box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
+                box-sizing: border-box;
+                padding: 20px 20px 40px 20px;
+                max-height: 60vh;
+                border: none;
+            }
+
+            .filter-section.highlight-mode {
+                display: block; /* 음절 클릭 시 등장 */
+                animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            }
+
+            @keyframes slideUp {
+                from { transform: translateY(100%); }
+                to { transform: translateY(0); }
+            }
+
+            /* 중요: 드래그 중일 때는 휴지통을 가리지 않게 필터를 즉시 숨김 */
+            body.is-dragging .filter-section {
+                display: none !important;
             }
 
             .consonant-grid {
-                grid-template-columns: repeat(5, 1fr); /* 모바일에서는 가로로 많이 깔기 */
+                grid-template-columns: repeat(5, 1fr); /* 모바일은 가로로 넓게 */
+            }
+
+            .saved-section {
+                width: 100%;
+                box-sizing: border-box;
+                padding-bottom: 50px;
             }
 
             h1 { font-size: 2rem; }
 
-            .name-area {
-                gap: 10px; /* 네모 사이 간격 줄임 */
-            }
+            .name-area { gap: 10px; }
 
             .box {
-                width: 75px; /* 모바일에 맞게 박스 크기 축소 */
-                height: 75px;
-                font-size: 2.2rem;
+                width: 80px; 
+                height: 80px;
+                font-size: 2.5rem;
                 border-radius: 15px;
             }
 
-            .action-menu {
-                width: 75px;
-            }
-
-            .save-btn {
-                height: 75px;
-                font-size: 1rem;
-                padding: 0 15px;
+            .action-menu { width: 80px; }
+            .save-btn { height: 80px; font-size: 1rem; padding: 0 15px; }
+            
+            /* 모바일 휴지통 크기 조절 */
+            body.is-dragging .trash-panel {
+                height: 70px; 
             }
         }
     </style>
@@ -481,7 +515,6 @@
     </div>
 
     <script>
-        // 요청해주신 새 리스트로 완벽하게 교체되었습니다!
         let syllables = [
             '가', '각', '간', '갈', '감', '강', '개', '거', '건', '걸', '검', '격', 
             '결', '겸', '경', '계', '고', '공', '과', '관', '광', '교', '구', '국', '군', '궁', 
@@ -538,7 +571,7 @@
             document.getElementById('count-display').innerText = `남은 글자 수: ${syllables.length}개`;
         }
 
-        /* ----- 하이라이트(오버레이) 관련 함수 ----- */
+        /* ----- 하이라이트(오버레이) 및 필터 활성화 ----- */
         function selectBox(boxNumber) {
             closeOverlay(); 
 
@@ -550,13 +583,11 @@
             
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('filter-section').classList.add('highlight-mode');
-            
             document.getElementById('trash-wrapper').classList.add('highlight-mode');
             
             renderConsonants(); 
         }
 
-        // 오버레이 클릭 시 닫기
         function closeOverlay() {
             document.getElementById('char1').classList.remove('selected', 'highlight-mode');
             document.getElementById('char2').classList.remove('selected', 'highlight-mode');
@@ -714,18 +745,18 @@
 
         /* ----- 드래그 앤 드롭 로직 ----- */
 
-        // 드래그를 시작할 때 (컴퓨터 & 모바일 공통 인식)
+        // 드래그 시작 시 (즉각적으로 어두워지고 휴지통 마중 활성화)
         function drag(event, boxNumber) {
             event.dataTransfer.setData("text", event.target.innerText);
             event.dataTransfer.setData("sourceId", event.target.id);
             
             document.body.classList.add('is-dragging');
             
-            // 드래그 즉시 하이라이트 발동
+            // 드래그를 하려고 터치/클릭하는 순간 집중 모드 켜기
             selectBox(boxNumber);
         }
 
-        // 드래그가 끝났을 때
+        // 드래그 종료 시 (휴지통 복귀)
         function dragEnd(event) {
             document.body.classList.remove('is-dragging');
         }
@@ -750,6 +781,7 @@
                 updateCount();
                 
                 addDiscardedChip(draggedChar);
+                closeOverlay(); 
             }
         }
 
