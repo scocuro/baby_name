@@ -38,7 +38,6 @@
             cursor: pointer; 
         }
 
-        /* ★ 핵심 수정: 드래그 중에는 오버레이가 터치를 방해하지 않게 투명화 */
         body.is-dragging #overlay {
             pointer-events: none !important;
         }
@@ -307,7 +306,21 @@
             line-height: 1.4;
         }
 
+        .filter-subtitle {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #333;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+
         .consonant-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 6px;
+        }
+
+        .jongsung-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr); 
             gap: 6px;
@@ -392,7 +405,7 @@
                 box-shadow: 0 -5px 20px rgba(0,0,0,0.2);
                 box-sizing: border-box;
                 padding: 20px 20px 40px 20px;
-                max-height: 60vh;
+                max-height: 70vh; /* 필터가 추가되어 높이 여유 확보 */
                 border: none;
             }
 
@@ -495,12 +508,16 @@
 
     <div class="sidebar">
         <div class="filter-section" id="filter-section">
-            <h2>초성 필터 🔠</h2>
+            <h2>초성 / 받침 필터 🔠</h2>
             <div class="filter-desc">
-                원하는 초성을 여러 개 고르세요.
+                원하는 조건들을 선택해주세요.
             </div>
-            <div class="consonant-grid" id="consonant-grid">
-            </div>
+            
+            <div class="filter-subtitle">초성 선택</div>
+            <div class="consonant-grid" id="consonant-grid"></div>
+
+            <div class="filter-subtitle">받침 유무</div>
+            <div class="jongsung-grid" id="jongsung-grid"></div>
         </div>
 
         <div class="saved-section">
@@ -547,15 +564,16 @@
         let historyIndex = { 1: -1, 2: -1 };
         
         let activeBox = null; 
+        
+        // 초성 필터와 받침 필터를 분리하여 관리
         let filters = { 1: new Set(), 2: new Set() }; 
+        let jongsungFilters = { 1: new Set(), 2: new Set() }; // 'O'(있음), 'X'(없음) 저장
 
-        // ★ 모바일 터치 위치를 실시간으로 기억하는 백업 추적기
         let activeDragChar = '';
         let activeDragId = '';
         let lastTouchX = 0;
         let lastTouchY = 0;
 
-        // 화면 어디든 터치해서 움직이면 좌표를 실시간 기록
         window.addEventListener('touchmove', function(e) {
             if (e.touches.length > 0) {
                 lastTouchX = e.touches[0].clientX;
@@ -563,7 +581,6 @@
             }
         }, { passive: true });
 
-        // 데스크탑 마우스 드래그 좌표도 기록
         window.addEventListener('dragover', function(e) {
             lastTouchX = e.clientX;
             lastTouchY = e.clientY;
@@ -578,7 +595,7 @@
             }, 100);
 
             updateCount();
-            renderConsonants();
+            renderFilters();
         };
 
         function updateCount() {
@@ -598,7 +615,7 @@
             document.getElementById('filter-section').classList.add('highlight-mode');
             document.getElementById('trash-wrapper').classList.add('highlight-mode');
             
-            renderConsonants(); 
+            renderFilters(); 
         }
 
         function closeOverlay() {
@@ -609,10 +626,11 @@
             document.getElementById('overlay').style.display = 'none';
         }
 
-        function renderConsonants() {
+        // 초성 필터와 받침 필터를 동시에 렌더링
+        function renderFilters() {
+            // 1. 초성 필터 렌더링
             const grid = document.getElementById('consonant-grid');
             grid.innerHTML = '';
-            
             CONSONANTS.forEach(c => {
                 const btn = document.createElement('button');
                 btn.innerText = c;
@@ -622,12 +640,30 @@
                     btn.style.opacity = '0.4';
                     btn.style.cursor = 'not-allowed';
                 } else {
-                    if (filters[activeBox].has(c)) {
-                        btn.classList.add('active');
-                    }
+                    if (filters[activeBox].has(c)) btn.classList.add('active');
                     btn.onclick = () => toggleFilter(c);
                 }
                 grid.appendChild(btn);
+            });
+
+            // 2. 받침 유무 필터 렌더링
+            const jGrid = document.getElementById('jongsung-grid');
+            jGrid.innerHTML = '';
+            const jongsungOptions = [{ id: 'O', label: '받침 있음' }, { id: 'X', label: '받침 없음' }];
+            
+            jongsungOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.innerText = opt.label;
+                btn.className = 'consonant-btn';
+                
+                if (!activeBox) {
+                    btn.style.opacity = '0.4';
+                    btn.style.cursor = 'not-allowed';
+                } else {
+                    if (jongsungFilters[activeBox].has(opt.id)) btn.classList.add('active');
+                    btn.onclick = () => toggleJongsungFilter(opt.id);
+                }
+                jGrid.appendChild(btn);
             });
         }
 
@@ -638,7 +674,17 @@
             } else {
                 filters[activeBox].add(consonant); 
             }
-            renderConsonants();
+            renderFilters();
+        }
+
+        function toggleJongsungFilter(id) {
+            if (!activeBox) return;
+            if (jongsungFilters[activeBox].has(id)) {
+                jongsungFilters[activeBox].delete(id); 
+            } else {
+                jongsungFilters[activeBox].add(id); 
+            }
+            renderFilters();
         }
 
         function getChosung(char) {
@@ -679,15 +725,29 @@
             if (syllables.length === 0) return null;
 
             let pool = syllables;
+            
+            // 1. 초성 필터 적용
             if (filters[boxNum].size > 0) {
-                pool = syllables.filter(c => {
+                pool = pool.filter(c => {
                     let chosung = getChosung(c);
                     return filters[boxNum].has(chosung);
                 });
             }
 
+            // 2. 받침 필터 적용
+            // 둘 다 선택했거나 둘 다 안 선택했으면 필터링 패스
+            if (jongsungFilters[boxNum].size === 1) {
+                const wantsJongsung = jongsungFilters[boxNum].has('O');
+                pool = pool.filter(c => {
+                    const code = c.charCodeAt(0) - 44032;
+                    // (유니코드 - 44032)를 28로 나눈 나머지가 0보다 크면 받침이 있는 것
+                    const hasJongsung = (code % 28) > 0;
+                    return hasJongsung === wantsJongsung;
+                });
+            }
+
             if (pool.length === 0) {
-                alert(`선택하신 초성에 해당하는 글자가 리스트에 없습니다.\n(우측 필터를 해제하거나 다른 자음을 선택해주세요)`);
+                alert(`선택하신 조건(초성/받침)에 해당하는 글자가 리스트에 없습니다.\n필터 조건을 변경해주세요.`);
                 return null;
             }
 
@@ -769,7 +829,6 @@
             selectBox(boxNumber);
         }
 
-        // ★ 강제 좌표 확인: 드래그가 끝났을 때 모바일 브라우저가 이벤트를 씹었는지 검사
         function dragEnd(event) {
             document.body.classList.remove('is-dragging');
             document.getElementById('trash-wrapper').classList.remove('drag-over');
@@ -778,13 +837,10 @@
                 const trash = document.getElementById('trash-wrapper');
                 const rect = trash.getBoundingClientRect();
                 
-                // 마지막으로 기록된 손가락 좌표 활용
                 const cx = event.clientX || lastTouchX;
                 const cy = event.clientY || lastTouchY;
 
-                // 손가락이 휴지통 위(+여유공간 30px)에서 떨어졌다면 강제 삭제 처리
                 if (cx >= rect.left - 30 && cx <= rect.right + 30 && cy >= rect.top - 30 && cy <= rect.bottom + 30) {
-                    // 가상의 이벤트 객체를 만들어서 drop 함수 강제 실행
                     dropOnTrash({
                         preventDefault: () => {},
                         dataTransfer: {
@@ -796,7 +852,6 @@
                 }
             }
 
-            // 안전하게 지운 후 변수 초기화
             setTimeout(() => {
                 activeDragChar = '';
                 activeDragId = '';
@@ -816,7 +871,6 @@
             event.preventDefault();
             document.getElementById('trash-wrapper').classList.remove('drag-over');
             
-            // 데이터 유실 방지 로직 (이벤트에서 못 가져오면 백업 변수 사용)
             const draggedChar = (event.dataTransfer && event.dataTransfer.getData("text")) || activeDragChar;
             const sourceId = (event.dataTransfer && event.dataTransfer.getData("sourceId")) || activeDragId;
 
@@ -828,7 +882,6 @@
                 addDiscardedChip(draggedChar);
                 closeOverlay(); 
                 
-                // 중복 삭제 방지를 위해 즉시 초기화
                 activeDragChar = '';
                 activeDragId = '';
             }
@@ -882,4 +935,3 @@
     </script>
 </body>
 </html>
-
